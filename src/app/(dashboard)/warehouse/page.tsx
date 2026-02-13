@@ -38,6 +38,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,6 +56,7 @@ interface Warehouse {
     name: string;
     address: string;
     description: string;
+    type: string;
     isActive: boolean;
     createdAt: string;
 }
@@ -62,21 +70,24 @@ export default function WarehousePage() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [pagination, setPagination] = useState({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
 
     const [formData, setFormData] = useState({
         code: "",
         name: "",
         address: "",
         description: "",
+        type: "SALES",
         isActive: true,
     });
 
-    const fetchWarehouses = async () => {
+    const fetchWarehouses = async (page = pagination.page) => {
         try {
-            const response = await fetch(`/api/warehouses?search=${search}`);
+            const response = await fetch(`/api/warehouses?search=${search}&page=${page}&pageSize=${pagination.pageSize}`);
             const data = await response.json();
             if (data.success) {
                 setWarehouses(data.data.items);
+                setPagination(prev => ({ ...prev, total: data.data.total, totalPages: data.data.totalPages, page }));
             }
         } catch (error) {
             toast.error("Không thể tải danh sách kho");
@@ -86,7 +97,8 @@ export default function WarehousePage() {
     };
 
     useEffect(() => {
-        fetchWarehouses();
+        setPagination(prev => ({ ...prev, page: 1 }));
+        fetchWarehouses(1);
     }, [search]);
 
     const resetForm = () => {
@@ -95,6 +107,7 @@ export default function WarehousePage() {
             name: "",
             address: "",
             description: "",
+            type: "SALES",
             isActive: true,
         });
     };
@@ -183,6 +196,7 @@ export default function WarehousePage() {
             name: warehouse.name,
             address: warehouse.address || "",
             description: warehouse.description || "",
+            type: warehouse.type || "SALES",
             isActive: warehouse.isActive,
         });
         setShowEditDialog(true);
@@ -234,6 +248,7 @@ export default function WarehousePage() {
                             <TableRow>
                                 <TableHead>Mã</TableHead>
                                 <TableHead>Tên</TableHead>
+                                <TableHead>Loại kho</TableHead>
                                 <TableHead>Địa chỉ</TableHead>
                                 <TableHead>Mô tả</TableHead>
                                 <TableHead>Trạng thái</TableHead>
@@ -263,6 +278,11 @@ export default function WarehousePage() {
                                     <TableRow key={warehouse.id}>
                                         <TableCell className="font-medium">{warehouse.code}</TableCell>
                                         <TableCell>{warehouse.name}</TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline">
+                                                {warehouse.type === "SALES" ? "Kho bán hàng" : "Kho hàng hóa"}
+                                            </Badge>
+                                        </TableCell>
                                         <TableCell>{warehouse.address || "-"}</TableCell>
                                         <TableCell>{warehouse.description || "-"}</TableCell>
                                         <TableCell>
@@ -300,6 +320,19 @@ export default function WarehousePage() {
                             )}
                         </TableBody>
                     </Table>
+
+                    {pagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-slate-500">
+                                Hiển thị {warehouses.length} / {pagination.total} bản ghi
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => fetchWarehouses(pagination.page - 1)}>Trước</Button>
+                                <div className="text-sm font-medium px-4">Trang {pagination.page} / {pagination.totalPages}</div>
+                                <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => fetchWarehouses(pagination.page + 1)}>Sau</Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -324,6 +357,21 @@ export default function WarehousePage() {
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Loại kho *</Label>
+                            <Select
+                                value={formData.type}
+                                onValueChange={(value) => setFormData({ ...formData, type: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Chọn loại kho" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="SALES">Kho bán hàng</SelectItem>
+                                    <SelectItem value="GOODS">Kho hàng hóa</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label>Địa chỉ</Label>
@@ -371,6 +419,21 @@ export default function WarehousePage() {
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Loại kho *</Label>
+                            <Select
+                                value={formData.type}
+                                onValueChange={(value) => setFormData({ ...formData, type: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Chọn loại kho" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="SALES">Kho bán hàng</SelectItem>
+                                    <SelectItem value="GOODS">Kho hàng hóa</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label>Địa chỉ</Label>

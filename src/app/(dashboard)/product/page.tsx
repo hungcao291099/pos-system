@@ -10,6 +10,7 @@ import {
     MoreHorizontal,
     Loader2,
     Package,
+    X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface Product {
     id: number;
@@ -99,6 +101,7 @@ export default function ProductPage() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [pagination, setPagination] = useState({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
 
     const [formData, setFormData] = useState({
         code: "",
@@ -116,12 +119,13 @@ export default function ProductPage() {
         warehousePrices: [] as { warehouseId: number; sellPrice: number }[],
     });
 
-    const fetchProducts = async () => {
+    const fetchProducts = async (page = pagination.page) => {
         try {
-            const response = await fetch(`/api/products?search=${search}`);
+            const response = await fetch(`/api/products?search=${search}&page=${page}&pageSize=${pagination.pageSize}`);
             const data = await response.json();
             if (data.success) {
                 setProducts(data.data.items);
+                setPagination(prev => ({ ...prev, total: data.data.total, totalPages: data.data.totalPages, page }));
             }
         } catch (error) {
             toast.error("Không thể tải danh sách sản phẩm");
@@ -150,7 +154,8 @@ export default function ProductPage() {
     };
 
     useEffect(() => {
-        fetchProducts();
+        setPagination(prev => ({ ...prev, page: 1 }));
+        fetchProducts(1);
         fetchMasterData();
     }, [search]);
 
@@ -279,21 +284,34 @@ export default function ProductPage() {
         setShowEditDialog(true);
     };
 
-    const updateWarehousePrice = (warehouseId: number, sellPrice: number) => {
-        const existing = formData.warehousePrices.find(wp => wp.warehouseId === warehouseId);
-        if (existing) {
-            setFormData({
-                ...formData,
-                warehousePrices: formData.warehousePrices.map(wp =>
-                    wp.warehouseId === warehouseId ? { ...wp, sellPrice } : wp
-                ),
-            });
-        } else {
-            setFormData({
-                ...formData,
-                warehousePrices: [...formData.warehousePrices, { warehouseId, sellPrice }],
-            });
+    const addWarehousePriceRow = () => {
+        // Pick the first warehouse not yet added
+        const usedIds = formData.warehousePrices.map(wp => wp.warehouseId);
+        const available = warehouses.filter(w => !usedIds.includes(w.id));
+        if (available.length === 0) {
+            toast.error("Đã thêm hết tất cả các kho");
+            return;
         }
+        setFormData({
+            ...formData,
+            warehousePrices: [...formData.warehousePrices, { warehouseId: available[0].id, sellPrice: 0 }],
+        });
+    };
+
+    const removeWarehousePriceRow = (index: number) => {
+        setFormData({
+            ...formData,
+            warehousePrices: formData.warehousePrices.filter((_, i) => i !== index),
+        });
+    };
+
+    const updateWarehousePrice = (index: number, field: "warehouseId" | "sellPrice", value: number) => {
+        setFormData({
+            ...formData,
+            warehousePrices: formData.warehousePrices.map((wp, i) =>
+                i === index ? { ...wp, [field]: value } : wp
+            ),
+        });
     };
 
     return (
@@ -414,6 +432,19 @@ export default function ProductPage() {
                             )}
                         </TableBody>
                     </Table>
+
+                    {pagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-slate-500">
+                                Hiển thị {products.length} / {pagination.total} bản ghi
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => fetchProducts(pagination.page - 1)}>Trước</Button>
+                                <div className="text-sm font-medium px-4">Trang {pagination.page} / {pagination.totalPages}</div>
+                                <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => fetchProducts(pagination.page + 1)}>Sau</Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -485,34 +516,34 @@ export default function ProductPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Giá nhập</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.purchasePrice}
-                                onChange={(e) => setFormData({ ...formData, purchasePrice: parseFloat(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, purchasePrice: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Giá bán mặc định</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.defaultSellPrice}
-                                onChange={(e) => setFormData({ ...formData, defaultSellPrice: parseFloat(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, defaultSellPrice: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Tồn tối thiểu</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.minStock}
-                                onChange={(e) => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, minStock: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Tồn tối đa</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.maxStock}
-                                onChange={(e) => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, maxStock: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="col-span-2 space-y-2">
@@ -525,23 +556,63 @@ export default function ProductPage() {
                         </div>
                         {warehouses.length > 0 && (
                             <div className="col-span-2 space-y-2">
-                                <Label>Giá bán theo kho</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {warehouses.map(warehouse => {
-                                        const price = formData.warehousePrices.find(wp => wp.warehouseId === warehouse.id);
-                                        return (
-                                            <div key={warehouse.id} className="flex items-center gap-2">
-                                                <span className="min-w-[100px] text-sm">{warehouse.name}:</span>
-                                                <Input
-                                                    type="number"
-                                                    value={price?.sellPrice || ""}
-                                                    placeholder="Giá bán"
-                                                    onChange={(e) => updateWarehousePrice(warehouse.id, parseFloat(e.target.value) || 0)}
-                                                />
-                                            </div>
-                                        );
-                                    })}
+                                <div className="flex items-center justify-between">
+                                    <Label>Giá bán theo kho</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addWarehousePriceRow}
+                                        disabled={formData.warehousePrices.length >= warehouses.length}
+                                    >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Thêm kho
+                                    </Button>
                                 </div>
+                                {formData.warehousePrices.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground italic">Chưa có giá theo kho. Sẽ sử dụng giá bán mặc định.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {formData.warehousePrices.map((wp, index) => {
+                                            const usedIds = formData.warehousePrices.filter((_, i) => i !== index).map(w => w.warehouseId);
+                                            const availableWarehouses = warehouses.filter(w => !usedIds.includes(w.id));
+                                            return (
+                                                <div key={index} className="flex items-center gap-2">
+                                                    <Select
+                                                        value={wp.warehouseId.toString()}
+                                                        onValueChange={(v) => updateWarehousePrice(index, "warehouseId", parseInt(v))}
+                                                    >
+                                                        <SelectTrigger className="w-[180px]">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {availableWarehouses.map(w => (
+                                                                <SelectItem key={w.id} value={w.id.toString()}>
+                                                                    {w.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <NumberInput
+                                                        value={wp.sellPrice || 0}
+                                                        placeholder="Giá bán"
+                                                        onChange={(v) => updateWarehousePrice(index, "sellPrice", v)}
+                                                        className="flex-1"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => removeWarehousePriceRow(index)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -622,34 +693,34 @@ export default function ProductPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Giá nhập</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.purchasePrice}
-                                onChange={(e) => setFormData({ ...formData, purchasePrice: parseFloat(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, purchasePrice: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Giá bán mặc định</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.defaultSellPrice}
-                                onChange={(e) => setFormData({ ...formData, defaultSellPrice: parseFloat(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, defaultSellPrice: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Tồn tối thiểu</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.minStock}
-                                onChange={(e) => setFormData({ ...formData, minStock: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, minStock: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Tồn tối đa</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.maxStock}
-                                onChange={(e) => setFormData({ ...formData, maxStock: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, maxStock: v })}
+                                placeholder="0"
                             />
                         </div>
                         <div className="col-span-2 space-y-2">
@@ -662,23 +733,63 @@ export default function ProductPage() {
                         </div>
                         {warehouses.length > 0 && (
                             <div className="col-span-2 space-y-2">
-                                <Label>Giá bán theo kho</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {warehouses.map(warehouse => {
-                                        const price = formData.warehousePrices.find(wp => wp.warehouseId === warehouse.id);
-                                        return (
-                                            <div key={warehouse.id} className="flex items-center gap-2">
-                                                <span className="min-w-[100px] text-sm">{warehouse.name}:</span>
-                                                <Input
-                                                    type="number"
-                                                    value={price?.sellPrice || ""}
-                                                    placeholder="Giá bán"
-                                                    onChange={(e) => updateWarehousePrice(warehouse.id, parseFloat(e.target.value) || 0)}
-                                                />
-                                            </div>
-                                        );
-                                    })}
+                                <div className="flex items-center justify-between">
+                                    <Label>Giá bán theo kho</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addWarehousePriceRow}
+                                        disabled={formData.warehousePrices.length >= warehouses.length}
+                                    >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Thêm kho
+                                    </Button>
                                 </div>
+                                {formData.warehousePrices.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground italic">Chưa có giá theo kho. Sẽ sử dụng giá bán mặc định.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {formData.warehousePrices.map((wp, index) => {
+                                            const usedIds = formData.warehousePrices.filter((_, i) => i !== index).map(w => w.warehouseId);
+                                            const availableWarehouses = warehouses.filter(w => !usedIds.includes(w.id));
+                                            return (
+                                                <div key={index} className="flex items-center gap-2">
+                                                    <Select
+                                                        value={wp.warehouseId.toString()}
+                                                        onValueChange={(v) => updateWarehousePrice(index, "warehouseId", parseInt(v))}
+                                                    >
+                                                        <SelectTrigger className="w-[180px]">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {availableWarehouses.map(w => (
+                                                                <SelectItem key={w.id} value={w.id.toString()}>
+                                                                    {w.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <NumberInput
+                                                        value={wp.sellPrice || 0}
+                                                        placeholder="Giá bán"
+                                                        onChange={(v) => updateWarehousePrice(index, "sellPrice", v)}
+                                                        className="flex-1"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => removeWarehousePriceRow(index)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
                         <div className="col-span-2 flex items-center gap-2">

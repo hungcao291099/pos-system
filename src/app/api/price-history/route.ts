@@ -31,19 +31,19 @@ export async function GET(request: NextRequest) {
             .where("history.deleted = :deleted", { deleted: false });
 
         if (productId) {
-            queryBuilder.andWhere("history.product_id = :productId", { productId: parseInt(productId) });
+            queryBuilder.andWhere("history.productId = :productId", { productId: parseInt(productId) });
         }
 
         if (warehouseId) {
-            queryBuilder.andWhere("history.warehouse_id = :warehouseId", { warehouseId: parseInt(warehouseId) });
+            queryBuilder.andWhere("history.warehouseId = :warehouseId", { warehouseId: parseInt(warehouseId) });
         }
 
         if (priceType) {
-            queryBuilder.andWhere("history.price_type = :priceType", { priceType });
+            queryBuilder.andWhere("history.priceType = :priceType", { priceType });
         }
 
         const [items, total] = await queryBuilder
-            .orderBy("history.effective_date", "DESC")
+            .orderBy("history.effectiveDate", "DESC")
             .skip((page - 1) * pageSize)
             .take(pageSize)
             .getManyAndCount();

@@ -32,6 +32,13 @@ export function badRequestResponse(message: string) {
     );
 }
 
+export function notFoundResponse(message = "Not Found") {
+    return NextResponse.json(
+        { success: false, error: message },
+        { status: 404 }
+    );
+}
+
 export function successResponse<T>(data: T, message?: string) {
     return NextResponse.json({
         success: true,

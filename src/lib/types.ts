@@ -161,6 +161,7 @@ export interface WarehouseDto {
     name: string;
     address?: string;
     description?: string;
+    type: string;
     isActive: boolean;
     createdAt: Date;
     modifiedAt: Date;
@@ -254,6 +255,7 @@ export interface CreateWarehouseRequest {
     name: string;
     address?: string;
     description?: string;
+    type?: string;
     isActive?: boolean;
 }
 

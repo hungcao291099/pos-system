@@ -13,21 +13,21 @@ export abstract class BaseEntity extends TypeORMBaseEntity {
     @CreateDateColumn({ name: "created_at" })
     createdAt!: Date;
 
-    @Column({ name: "created_by", nullable: true })
-    createdBy!: string;
+    @Column({ name: "created_by", type: "varchar", nullable: true })
+    createdBy?: string | null;
 
     @UpdateDateColumn({ name: "modified_at" })
     modifiedAt!: Date;
 
-    @Column({ name: "modified_by", nullable: true })
-    modifiedBy!: string;
+    @Column({ name: "modified_by", type: "varchar", nullable: true })
+    modifiedBy?: string | null;
 
     @Column({ default: false })
     deleted!: boolean;
 
-    @Column({ name: "deleted_at", nullable: true })
-    deletedAt!: Date;
+    @Column({ name: "deleted_at", type: "datetime", nullable: true })
+    deletedAt?: Date | null;
 
-    @Column({ name: "deleted_by", nullable: true })
-    deletedBy!: string;
+    @Column({ name: "deleted_by", type: "varchar", nullable: true })
+    deletedBy?: string | null;
 }

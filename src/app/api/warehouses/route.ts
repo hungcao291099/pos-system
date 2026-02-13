@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         const pageSize = parseInt(searchParams.get("pageSize") || "10");
         const search = searchParams.get("search") || "";
         const all = searchParams.get("all") === "true";
+        const type = searchParams.get("type");
 
         const queryBuilder = repo
             .createQueryBuilder("warehouse")
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
                 "(warehouse.code LIKE :search OR warehouse.name LIKE :search)",
                 { search: `%${search}%` }
             );
+        }
+
+        if (type) {
+            queryBuilder.andWhere("warehouse.type = :type", { type });
         }
 
         if (all) {
@@ -68,7 +73,7 @@ export async function POST(request: NextRequest) {
         if (permissionCheck) return permissionCheck;
 
         const body = await request.json();
-        const { code, name, address, description, isActive = true } = body;
+        const { code, name, address, description, type, isActive = true } = body;
 
         if (!code || !name) {
             return badRequestResponse("Code and name are required");
@@ -90,6 +95,7 @@ export async function POST(request: NextRequest) {
             name,
             address,
             description,
+            type,
             isActive,
             createdBy: authUser?.username || "system",
             modifiedBy: authUser?.username || "system",

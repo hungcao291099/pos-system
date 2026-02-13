@@ -13,7 +13,7 @@
         "strictPropertyInitialization": false,
         "resolveJsonModule": true,
         "moduleResolution": "node",
-        "baseUrl": ".",
+        "baseUrl": "..",
         "paths": {
             "@/*": [
                 "./src/*"

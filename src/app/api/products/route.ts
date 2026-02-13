@@ -25,40 +25,48 @@ export async function GET(request: NextRequest) {
         const categoryId = searchParams.get("categoryId");
         const all = searchParams.get("all") === "true";
 
-        const queryBuilder = repo
-            .createQueryBuilder("product")
-            .leftJoinAndSelect("product.unit", "unit")
-            .leftJoinAndSelect("product.category", "category")
-            .leftJoinAndSelect("product.warehousePrices", "warehousePrices")
-            .leftJoinAndSelect("warehousePrices.warehouse", "warehouse")
-            .where("product.deleted = :deleted", { deleted: false });
-
-        if (search) {
-            queryBuilder.andWhere(
-                "(product.code LIKE :search OR product.name LIKE :search OR product.barcode LIKE :search)",
-                { search: `%${search}%` }
-            );
-        }
-
+        // Use find with relations instead of createQueryBuilder to avoid databaseName error
+        const where: Record<string, unknown> = { deleted: false };
         if (categoryId) {
-            queryBuilder.andWhere("product.category_id = :categoryId", { categoryId: parseInt(categoryId) });
+            where.categoryId = parseInt(categoryId);
         }
 
         if (all) {
-            const items = await queryBuilder
-                .orderBy("product.name", "ASC")
-                .getMany();
+            let items = await repo.find({
+                where,
+                relations: ["unit", "category", "warehousePrices"],
+                order: { name: "ASC" },
+            });
+            if (search) {
+                const s = search.toLowerCase();
+                items = items.filter(p =>
+                    p.code.toLowerCase().includes(s) ||
+                    p.name.toLowerCase().includes(s) ||
+                    (p.barcode && p.barcode.toLowerCase().includes(s))
+                );
+            }
             return successResponse(items);
         }
 
-        const [items, total] = await queryBuilder
-            .orderBy("product.created_at", "DESC")
-            .skip((page - 1) * pageSize)
-            .take(pageSize)
-            .getManyAndCount();
+        // For paginated queries, fetch all matching then paginate in memory
+        let items = await repo.find({
+            where,
+            relations: ["unit", "category", "warehousePrices"],
+            order: { createdAt: "DESC" },
+        });
+        if (search) {
+            const s = search.toLowerCase();
+            items = items.filter(p =>
+                p.code.toLowerCase().includes(s) ||
+                p.name.toLowerCase().includes(s) ||
+                (p.barcode && p.barcode.toLowerCase().includes(s))
+            );
+        }
+        const total = items.length;
+        const paged = items.slice((page - 1) * pageSize, page * pageSize);
 
         return successResponse({
-            items,
+            items: paged,
             total,
             page,
             pageSize,

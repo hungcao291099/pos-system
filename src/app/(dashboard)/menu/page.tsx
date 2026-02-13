@@ -10,10 +10,29 @@ import {
     MoreHorizontal,
     Loader2,
     Menu as MenuIcon,
+    GripVertical,
 } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
     Table,
@@ -62,6 +81,82 @@ interface MenuItem {
 
 // Icon options moved to IconPicker component
 
+interface SortableRowProps {
+    menu: MenuItem;
+    onEdit: (menu: MenuItem) => void;
+    onDelete: (menu: MenuItem) => void;
+}
+
+function SortableRow({ menu, onEdit, onDelete }: SortableRowProps) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: menu.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1 : 0,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <TableRow ref={setNodeRef} style={style} className={isDragging ? "bg-slate-50" : ""}>
+            <TableCell className="w-10">
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-100 rounded"
+                >
+                    <GripVertical className="w-4 h-4 text-slate-400" />
+                </div>
+            </TableCell>
+            <TableCell className="font-medium">
+                <div className="flex items-center gap-2">
+                    <MenuIcon className="w-4 h-4 text-slate-400" />
+                    {menu.name}
+                </div>
+            </TableCell>
+            <TableCell className="text-slate-500">{menu.path}</TableCell>
+            <TableCell>
+                <Badge variant="outline">{menu.icon}</Badge>
+            </TableCell>
+            <TableCell>{menu.sortOrder}</TableCell>
+            <TableCell>
+                <Badge variant={menu.isActive ? "default" : "secondary"}>
+                    {menu.isActive ? "Hoạt động" : "Vô hiệu"}
+                </Badge>
+            </TableCell>
+            <TableCell>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(menu)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Chỉnh sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={() => onDelete(menu)}
+                            className="text-red-600"
+                        >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Xóa
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </TableCell>
+        </TableRow>
+    );
+}
+
 export default function MenuPage() {
     const [menus, setMenus] = useState<MenuItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +166,8 @@ export default function MenuPage() {
     const [selectedMenu, setSelectedMenu] = useState<MenuItem | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [menuPage, setMenuPage] = useState(1);
+    const menuPageSize = 20;
 
     const [formData, setFormData] = useState({
         name: "",
@@ -80,6 +177,13 @@ export default function MenuPage() {
         sortOrder: 0,
         isActive: true,
     });
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     const fetchMenus = async () => {
         try {
@@ -158,6 +262,50 @@ export default function MenuPage() {
             m.path.toLowerCase().includes(search.toLowerCase())
     );
 
+    const menuTotalPages = Math.ceil(filteredMenus.length / menuPageSize);
+    const paginatedMenus = filteredMenus.slice((menuPage - 1) * menuPageSize, menuPage * menuPageSize);
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = menus.findIndex((m) => m.id === active.id);
+            const newIndex = menus.findIndex((m) => m.id === over.id);
+
+            const newMenus = arrayMove(menus, oldIndex, newIndex);
+
+            // Re-calculate sort orders based on the new array order
+            const updatedMenus = newMenus.map((menu, index) => ({
+                ...menu,
+                sortOrder: index + 1
+            }));
+
+            setMenus(updatedMenus);
+
+            try {
+                const response = await fetch("/api/menus/reorder", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        items: updatedMenus.map(m => ({ id: m.id, sortOrder: m.sortOrder }))
+                    }),
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    toast.error("Không thể lưu thứ tự menu");
+                    fetchMenus(); // Revert
+                } else {
+                    toast.success("Đã cập nhật thứ tự menu");
+                }
+            } catch (error) {
+                toast.error("Lỗi khi cập nhật thứ tự");
+                fetchMenus(); // Revert
+            }
+        }
+    };
+
+    useEffect(() => { setMenuPage(1); }, [search]);
+
     const parentMenuOptions = menus.filter((m) => !m.parentId);
 
     return (
@@ -198,98 +346,88 @@ export default function MenuPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Tên menu</TableHead>
-                                <TableHead>Đường dẫn</TableHead>
-                                <TableHead>Icon</TableHead>
-                                <TableHead>Thứ tự</TableHead>
-                                <TableHead>Trạng thái</TableHead>
-                                <TableHead className="w-12"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                                    </TableRow>
-                                ))
-                            ) : filteredMenus.length === 0 ? (
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center text-slate-500 py-8">
-                                        Không có menu nào
-                                    </TableCell>
+                                    <TableHead className="w-10"></TableHead>
+                                    <TableHead>Tên menu</TableHead>
+                                    <TableHead>Đường dẫn</TableHead>
+                                    <TableHead>Icon</TableHead>
+                                    <TableHead>Thứ tự</TableHead>
+                                    <TableHead>Trạng thái</TableHead>
+                                    <TableHead className="w-12"></TableHead>
                                 </TableRow>
-                            ) : (
-                                filteredMenus.map((menu) => (
-                                    <TableRow key={menu.id}>
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <MenuIcon className="w-4 h-4 text-slate-400" />
-                                                {menu.name}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-slate-500">{menu.path}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{menu.icon}</Badge>
-                                        </TableCell>
-                                        <TableCell>{menu.sortOrder}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={menu.isActive ? "default" : "secondary"}>
-                                                {menu.isActive ? "Hoạt động" : "Vô hiệu"}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon">
-                                                        <MoreHorizontal className="w-4 h-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                        onClick={() => {
-                                                            setIsEditing(true);
-                                                            setSelectedMenu(menu);
-                                                            setFormData({
-                                                                name: menu.name,
-                                                                path: menu.path,
-                                                                icon: menu.icon,
-                                                                parentId: menu.parentId,
-                                                                sortOrder: menu.sortOrder,
-                                                                isActive: menu.isActive,
-                                                            });
-                                                            setShowDialog(true);
-                                                        }}
-                                                    >
-                                                        <Edit className="w-4 h-4 mr-2" />
-                                                        Chỉnh sửa
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={() => {
-                                                            setSelectedMenu(menu);
-                                                            setShowDeleteDialog(true);
-                                                        }}
-                                                        className="text-red-600"
-                                                    >
-                                                        <Trash2 className="w-4 h-4 mr-2" />
-                                                        Xóa
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : filteredMenus.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                                            Không có menu nào
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    <SortableContext
+                                        items={paginatedMenus.map(m => m.id)}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {paginatedMenus.map((menu) => (
+                                            <SortableRow
+                                                key={menu.id}
+                                                menu={menu}
+                                                onEdit={(m) => {
+                                                    setIsEditing(true);
+                                                    setSelectedMenu(m);
+                                                    setFormData({
+                                                        name: m.name,
+                                                        path: m.path,
+                                                        icon: m.icon,
+                                                        parentId: m.parentId,
+                                                        sortOrder: m.sortOrder,
+                                                        isActive: m.isActive,
+                                                    });
+                                                    setShowDialog(true);
+                                                }}
+                                                onDelete={(m) => {
+                                                    setSelectedMenu(m);
+                                                    setShowDeleteDialog(true);
+                                                }}
+                                            />
+                                        ))}
+                                    </SortableContext>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </DndContext>
+
+                    {menuTotalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-slate-500">
+                                Hiển thị {paginatedMenus.length} / {filteredMenus.length} bản ghi
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={menuPage === 1} onClick={() => setMenuPage(p => p - 1)}>Trước</Button>
+                                <div className="text-sm font-medium px-4">Trang {menuPage} / {menuTotalPages}</div>
+                                <Button variant="outline" size="sm" disabled={menuPage === menuTotalPages} onClick={() => setMenuPage(p => p + 1)}>Sau</Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -344,10 +482,10 @@ export default function MenuPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Thứ tự sắp xếp</Label>
-                                <Input
-                                    type="number"
+                                <NumberInput
                                     value={formData.sortOrder}
-                                    onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                                    onChange={(v) => setFormData({ ...formData, sortOrder: v })}
+                                    maxDecimals={0}
                                 />
                             </div>
                             <div className="flex items-center gap-2 pt-6">

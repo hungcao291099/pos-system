@@ -1,21 +1,21 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
 import { BaseEntity } from "./BaseEntity";
-import type { Product } from "./Product";
-import type { Warehouse } from "./Warehouse";
+import { Product } from "./Product";
+import { Warehouse } from "./Warehouse";
 
 @Entity("price_histories")
 export class PriceHistory extends BaseEntity {
     @Column({ name: "product_id" })
     productId!: number;
 
-    @ManyToOne("Product")
+    @ManyToOne(() => Product)
     @JoinColumn({ name: "product_id" })
     product!: Product;
 
-    @Column({ name: "warehouse_id", nullable: true })
-    warehouseId!: number;
+    @Column({ name: "warehouse_id", type: "integer", nullable: true })
+    warehouseId?: number | null;
 
-    @ManyToOne("Warehouse")
+    @ManyToOne(() => Warehouse)
     @JoinColumn({ name: "warehouse_id" })
     warehouse!: Warehouse;
 

@@ -81,6 +81,7 @@ export default function RolePage() {
     const [selectedPermissionIds, setSelectedPermissionIds] = useState<number[]>([]);
     const [selectedMenuIds, setSelectedMenuIds] = useState<number[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [pagination, setPagination] = useState({ page: 1, pageSize: 20, total: 0, totalPages: 0 });
 
     const [formData, setFormData] = useState({
         name: "",
@@ -88,12 +89,13 @@ export default function RolePage() {
         isActive: true,
     });
 
-    const fetchRoles = async () => {
+    const fetchRoles = async (page = pagination.page) => {
         try {
-            const response = await fetch(`/api/roles?search=${search}`);
+            const response = await fetch(`/api/roles?search=${search}&page=${page}&pageSize=${pagination.pageSize}`);
             const data = await response.json();
             if (data.success) {
                 setRoles(data.data.items);
+                setPagination(prev => ({ ...prev, total: data.data.total, totalPages: data.data.totalPages, page }));
             }
         } catch (error) {
             toast.error("Không thể tải danh sách vai trò");
@@ -151,7 +153,8 @@ export default function RolePage() {
     };
 
     useEffect(() => {
-        fetchRoles();
+        setPagination(prev => ({ ...prev, page: 1 }));
+        fetchRoles(1);
         fetchPermissions();
         fetchMenus();
     }, [search]);
@@ -421,6 +424,19 @@ export default function RolePage() {
                             )}
                         </TableBody>
                     </Table>
+
+                    {pagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-slate-500">
+                                Hiển thị {roles.length} / {pagination.total} bản ghi
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => fetchRoles(pagination.page - 1)}>Trước</Button>
+                                <div className="text-sm font-medium px-4">Trang {pagination.page} / {pagination.totalPages}</div>
+                                <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => fetchRoles(pagination.page + 1)}>Sau</Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

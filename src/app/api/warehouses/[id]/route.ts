@@ -48,7 +48,7 @@ export async function PUT(
 
         const { id } = await params;
         const body = await request.json();
-        const { name, address, description, isActive } = body;
+        const { name, address, description, type, isActive } = body;
 
         const db = await initializeDatabase();
         const repo = db.getRepository(Warehouse);
@@ -64,6 +64,7 @@ export async function PUT(
         if (name !== undefined) warehouse.name = name;
         if (address !== undefined) warehouse.address = address;
         if (description !== undefined) warehouse.description = description;
+        if (type !== undefined) warehouse.type = type;
         if (isActive !== undefined) warehouse.isActive = isActive;
         warehouse.modifiedBy = authUser?.username || "system";
 

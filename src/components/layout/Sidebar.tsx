@@ -21,6 +21,15 @@ import {
     Layers,
     Warehouse,
     History,
+    PackagePlus,
+    PackageMinus,
+    LayoutGrid,
+    ShoppingCart,
+    ChefHat,
+    Settings,
+    Gift,
+    Tag,
+    Percent,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -50,6 +59,15 @@ const iconMap: { [key: string]: LucideIcon } = {
     Layers,
     Warehouse,
     History,
+    PackagePlus,
+    PackageMinus,
+    LayoutGrid,
+    ShoppingCart,
+    ChefHat,
+    Settings,
+    Gift,
+    Tag,
+    Percent,
 };
 
 export function Sidebar() {
@@ -66,33 +84,49 @@ export function Sidebar() {
         );
     };
 
-    // Build tree structure from flat list
-    const buildMenuTree = (items: MenuItem[]): MenuItem[] => {
-        const map = new Map<number, MenuItem>();
-        const roots: MenuItem[] = [];
+    // Use menus directly from AuthContext as they are already a tree
+    const menuTree = menus;
 
-        items.forEach((item) => {
-            map.set(item.id, { ...item, children: [] });
-        });
-
-        items.forEach((item) => {
-            const node = map.get(item.id)!;
-            if (item.parentId && map.has(item.parentId)) {
-                map.get(item.parentId)!.children!.push(node);
-            } else {
-                roots.push(node);
+    // Expand parent menus that contain the active path
+    React.useEffect(() => {
+        const getParentIds = (items: MenuItem[], targetPath: string): number[] => {
+            for (const item of items) {
+                if (item.path === targetPath) return [];
+                if (item.children && item.children.length > 0) {
+                    const childResult = getParentIds(item.children, targetPath);
+                    if (childResult.length > 0 || item.children.some(c => c.path === targetPath)) {
+                        return [item.id, ...childResult];
+                    }
+                }
             }
-        });
+            return [];
+        };
 
-        return roots;
-    };
-
-    const menuTree = buildMenuTree(menus);
+        if (pathname && menus.length > 0) {
+            const parentIds = getParentIds(menus, pathname);
+            if (parentIds.length > 0) {
+                setExpandedMenus(prev => {
+                    const newIds = parentIds.filter(id => !prev.includes(id));
+                    return newIds.length > 0 ? [...prev, ...newIds] : prev;
+                });
+            }
+        }
+    }, [pathname, menus]);
 
     const renderMenuItem = (item: MenuItem, depth = 0) => {
         const IconComponent = iconMap[item.icon] || Home;
-        const isActive = pathname === item.path;
+        const isDirectActive = pathname === item.path;
         const hasChildren = item.children && item.children.length > 0;
+
+        // Check if any child is active
+        const isChildActive = (menu: MenuItem): boolean => {
+            if (!menu.children) return false;
+            return menu.children.some(child =>
+                pathname === child.path || isChildActive(child)
+            );
+        };
+
+        const isActive = isDirectActive || isChildActive(item);
         const isMenuExpanded = expandedMenus.includes(item.id);
 
         return (
@@ -102,24 +136,19 @@ export function Sidebar() {
                         onClick={() => toggleMenu(item.id)}
                         className={cn(
                             "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-                            "hover:bg-blue-50 text-slate-600 hover:text-blue-600",
+                            isActive
+                                ? "bg-blue-50 text-blue-600 font-semibold"
+                                : "hover:bg-blue-50 text-slate-600 hover:text-blue-600",
                             !isExpanded && "justify-center px-3"
                         )}
                         style={{ paddingLeft: isExpanded ? `${16 + depth * 16}px` : undefined }}
                     >
                         <IconComponent className="w-5 h-5 flex-shrink-0" />
-                        <AnimatePresence>
-                            {isExpanded && (
-                                <motion.span
-                                    initial={{ opacity: 0, width: 0 }}
-                                    animate={{ opacity: 1, width: "auto" }}
-                                    exit={{ opacity: 0, width: 0 }}
-                                    className="flex-1 text-left text-sm font-medium whitespace-nowrap overflow-hidden"
-                                >
-                                    {item.name}
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
+                        {isExpanded && (
+                            <span className="flex-1 text-left text-sm font-medium whitespace-nowrap overflow-hidden">
+                                {item.name}
+                            </span>
+                        )}
                         {isExpanded && (
                             <motion.div
                                 animate={{ rotate: isMenuExpanded ? 180 : 0 }}
@@ -142,18 +171,11 @@ export function Sidebar() {
                         style={{ paddingLeft: isExpanded ? `${16 + depth * 16}px` : undefined }}
                     >
                         <IconComponent className="w-5 h-5 flex-shrink-0" />
-                        <AnimatePresence>
-                            {isExpanded && (
-                                <motion.span
-                                    initial={{ opacity: 0, width: 0 }}
-                                    animate={{ opacity: 1, width: "auto" }}
-                                    exit={{ opacity: 0, width: 0 }}
-                                    className="text-sm font-medium whitespace-nowrap overflow-hidden"
-                                >
-                                    {item.name}
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
+                        {isExpanded && (
+                            <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                                {item.name}
+                            </span>
+                        )}
                     </Link>
                 )}
 
@@ -177,10 +199,10 @@ export function Sidebar() {
 
     return (
         <motion.aside
-            initial={{ width: 256 }}
+            initial={false}
             animate={{ width: isExpanded ? 256 : 80 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="h-screen bg-white border-r border-slate-200 flex flex-col"
+            className="h-screen bg-white border-r border-slate-200 flex flex-col will-change-[width]"
         >
             {/* Logo */}
             <div className="h-16 flex items-center justify-center border-b border-slate-200">

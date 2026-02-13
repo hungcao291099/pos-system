@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
     Table,
@@ -58,6 +59,7 @@ interface ProductCategory {
     description: string;
     parentId: number | null;
     sortOrder: number;
+    isPreparation: boolean;
     isActive: boolean;
     children?: ProductCategory[];
 }
@@ -73,6 +75,8 @@ export default function ProductCategoryPage() {
     const [selectedCategory, setSelectedCategory] = useState<ProductCategory | null>(null);
     const [expandedIds, setExpandedIds] = useState<number[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [catPage, setCatPage] = useState(1);
+    const catPageSize = 20;
 
     const [formData, setFormData] = useState({
         code: "",
@@ -80,6 +84,7 @@ export default function ProductCategoryPage() {
         description: "",
         parentId: null as number | null,
         sortOrder: 0,
+        isPreparation: false,
         isActive: true,
     });
 
@@ -122,6 +127,7 @@ export default function ProductCategoryPage() {
             description: "",
             parentId: null,
             sortOrder: 0,
+            isPreparation: false,
             isActive: true,
         });
     };
@@ -211,6 +217,7 @@ export default function ProductCategoryPage() {
             description: category.description || "",
             parentId: category.parentId,
             sortOrder: category.sortOrder,
+            isPreparation: category.isPreparation || false,
             isActive: category.isActive,
         });
         setShowEditDialog(true);
@@ -246,6 +253,11 @@ export default function ProductCategoryPage() {
                     <TableCell>{category.description || "-"}</TableCell>
                     <TableCell>{category.sortOrder}</TableCell>
                     <TableCell>
+                        {category.isPreparation && (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 mr-1">
+                                Pha chế
+                            </Badge>
+                        )}
                         <Badge variant={category.isActive ? "default" : "secondary"}>
                             {category.isActive ? "Hoạt động" : "Ngừng"}
                         </Badge>
@@ -287,6 +299,11 @@ export default function ProductCategoryPage() {
             c.name.toLowerCase().includes(search.toLowerCase())
         )
         : categories;
+
+    const catTotalPages = search ? Math.ceil(filteredCategories.length / catPageSize) : 0;
+    const paginatedCategories = search ? filteredCategories.slice((catPage - 1) * catPageSize, catPage * catPageSize) : filteredCategories;
+
+    useEffect(() => { setCatPage(1); }, [search]);
 
     return (
         <div className="space-y-6">
@@ -359,7 +376,7 @@ export default function ProductCategoryPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : search ? (
-                                filteredCategories.map(category => (
+                                paginatedCategories.map(category => (
                                     <TableRow key={category.id}>
                                         <TableCell className="font-medium">{category.code}</TableCell>
                                         <TableCell>{category.name}</TableCell>
@@ -402,6 +419,19 @@ export default function ProductCategoryPage() {
                             )}
                         </TableBody>
                     </Table>
+
+                    {search && catTotalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-slate-500">
+                                Hiển thị {paginatedCategories.length} / {filteredCategories.length} bản ghi
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" disabled={catPage === 1} onClick={() => setCatPage(p => p - 1)}>Trước</Button>
+                                <div className="text-sm font-medium px-4">Trang {catPage} / {catTotalPages}</div>
+                                <Button variant="outline" size="sm" disabled={catPage === catTotalPages} onClick={() => setCatPage(p => p + 1)}>Sau</Button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -455,11 +485,18 @@ export default function ProductCategoryPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Thứ tự sắp xếp</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.sortOrder}
-                                onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, sortOrder: v })}
+                                maxDecimals={0}
                             />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                checked={formData.isPreparation}
+                                onCheckedChange={(checked) => setFormData({ ...formData, isPreparation: checked as boolean })}
+                            />
+                            <Label>Lớp hàng pha chế (không cần tồn kho)</Label>
                         </div>
                     </div>
                     <DialogFooter>
@@ -521,11 +558,18 @@ export default function ProductCategoryPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Thứ tự sắp xếp</Label>
-                            <Input
-                                type="number"
+                            <NumberInput
                                 value={formData.sortOrder}
-                                onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                                onChange={(v) => setFormData({ ...formData, sortOrder: v })}
+                                maxDecimals={0}
                             />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                checked={formData.isPreparation}
+                                onCheckedChange={(checked) => setFormData({ ...formData, isPreparation: checked as boolean })}
+                            />
+                            <Label>Lớp hàng pha chế (không cần tồn kho)</Label>
                         </div>
                         <div className="flex items-center gap-2">
                             <Checkbox
